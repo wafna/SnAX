@@ -26,14 +26,16 @@ import Data.Typeable()
 import Data.Time.Clock.POSIX
 
 ------------------------------------------------------
--- The Haskell structure that we want to encapsulate
+-- the domain.
 
 data User = User 
   { userId :: UserId
-  , userName :: UserName }
-  deriving (Eq, Typeable, Show, Data)
+  , userName :: UserName 
+  } deriving (Eq, Typeable, Show, Data)
+
 newtype UserId = UserId Int64
   deriving (Eq, Ord, Typeable, Show, Data)
+
 newtype UserName = UserName Text
   deriving (Eq, Ord, Typeable, Show, Data)
 
@@ -51,16 +53,21 @@ data Message = Message
   , messageOwner :: MessageOwner
   , messageRecipients :: [MessageRecipient]
   , messageTime :: MessageTime
-  , messageContent :: MessageContent }
-  deriving (Eq, Typeable, Show, Data)
+  , messageContent :: MessageContent 
+  } deriving (Eq, Typeable, Show, Data)
+
 newtype MessageId = MessageId Int64
   deriving (Eq, Ord, Typeable, Show, Data)
+
 newtype MessageOwner = MessageOwner UserId
   deriving (Eq, Ord, Typeable, Show, Data)
+
 newtype MessageRecipient = MessageRecipient UserId
   deriving (Eq, Ord, Typeable, Show, Data)
+
 newtype MessageTime = MessageTime POSIXTime
   deriving (Eq, Ord, Typeable, Show, Data)
+
 type MessageContent = Text
 
 instance Ord Message where
@@ -78,7 +85,10 @@ instance Indexable Message where
       , ixFun $ \ m -> [messageTime m]
       ]
 
--- Tables contain an IxSet and a counter for the next uid.
+---------------------------------------------------------
+-- the database.
+
+-- Tables contain an IxSet and a counter for the next id.
 data (Indexable a, Typeable a, Ord a) => Table a = Table { set :: IxSet a, nextId :: Int64 }
 
 data DB = DB { users :: Table User, messages :: Table Message }
@@ -101,7 +111,7 @@ $(deriveSafeCopy 0 'base ''DB)
 type ADB = AcidState DB
 
 ------------------------------------------------------
--- The transaction we will execute over the state.
+-- the api.
 
 createUserDB :: Text -> Update DB (Either Text UserId)
 createUserDB name = do 
@@ -185,6 +195,8 @@ listMessagesSentDB id = do
     return $ toList $ (set $ messages db) @= (MessageOwner id)
 
 $(makeAcidic ''DB ['createUserDB, 'deleteUserDB, 'listUsersDB, 'getUserByIdDB, 'getUserByNameDB, 'createMessageDB, 'deleteMessageDB, 'listMessagesSentDB, 'listMessagesReceivedDB])
+
+-- the direct API
 
 createUser :: Text -> ADB -> IO (Either Text UserId)
 createUser name db = update db (CreateUserDB name)
