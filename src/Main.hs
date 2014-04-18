@@ -61,6 +61,13 @@ instance ToJSON MessageId where
 instance ToJSON MessageTime where
   toJSON (MessageTime t) = object ["time" .= ((truncate t) :: Int64)]
 
+data REither = RSuccess Value | RFailure String
+
+instance ToJSON REither where
+  toJSON re = case re of
+    RSuccess v -> object ["success" .= v]
+    RFailure v -> object ["failure" .= v]
+
 main :: IO ()
 main = withDB $ \ db -> do
   quickHttpServe $ route 
@@ -72,9 +79,26 @@ main = withDB $ \ db -> do
 Expects requests made like this
   $.ajax({
      type: 'POST',
-     data: JSON.stringify(rpc),
+     data: JSON.stringify(data),
      dataType: 'json'
   });
+
+The payload will look like this:
+{ tag1: {name: 'function', params: [...] }
+, tag2: {name: 'anotherFunction', params: [...] }
+}
+
+The result will look like this:
+{ tag1: {"success/failure": data/reason }
+, tag2: {"success/failure": data/reason }
+}
+
+Note that success simply means the call returned normally.  The call may still not have produced the desired effect (e.g. the id was not found).
+In those cases, the function specifies a success return value to indicate this. E.g. a request to delete a message where no message with that id 
+exists will return success but the success value may have a bool indicating whether anything was actually deleted.  The reason for all this is 
+that we want to wrap all the error handling on the client and only map actual return values down to the call sites.
+
+The tags are client defined and are simply used to keep track of with returned data belong to which call.
 -}
 api :: ADB -> Snap ()
 api db = do
@@ -82,14 +106,12 @@ api db = do
   case (eitherDecode $ blToBC body) :: Either String (Map String RPC) of
     Left e -> setUpUsTheBomb 400 "Malformed input." $ BW.concat ["Cannot parse JSON: ", fromString e, "\n", blToBW body]
     Right calls -> do
-      --r <- liftIO $ catch (mapRPC (fmap (\ (tag, call) -> (tag, rpc db call)) (Map.toList calls)) >>= return . Right) $
       r <- liftIO $ catch (mapRPC calls db >>= return . Right) $
         \ e -> return $ Left $ show (e :: IOException)
       case r of 
         Left e -> setUpUsTheBomb 500 "Internal Error" $ sToBW e
 --        Right s -> writeBS $ bcToBW $ encode s
         Right s -> writeBS $ bcToBW $ encode s
-
   where
   -- Emit an error message.
   setUpUsTheBomb :: Int -> BW.ByteString -> BW.ByteString -> Snap ()
@@ -111,14 +133,14 @@ mapRPC m db = (mapRPC' $ Map.toList m) >>= return . Map.fromList
         return $ (t, toJSON r) : rs
       [] -> return []
 
-rpc :: ADB -> RPC -> IO (Either String Value)
+rpc :: ADB -> RPC -> IO REither
 rpc db f = 
   let
     fn = name f
     ps = V.toList $ params f
-    doink m = return $ Left $ "Function: " ++ fn ++ ": " ++ m
-    score :: ToJSON a => a -> IO (Either String Value)
-    score = return . Right . toJSON
+    doink m = return $ RFailure $ "Function: " ++ fn ++ ": " ++ m
+    score :: ToJSON a => a -> IO REither
+    score = return . RSuccess . toJSON
   in
   case fn of
     "createUser" -> case ps of
