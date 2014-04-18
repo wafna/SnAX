@@ -49,7 +49,6 @@ stopServer()
 	if [ -f server.pid ]; then
 		pid=$(cat server.pid)
 		rm -v server.pid
-		ls -F
 	else
 		echo "no pid recorded"
 		pid=$(ps | grep '${APP_PATH}' | awk '{print $1}')
