@@ -148,11 +148,11 @@ $(function() {
       return proxy;
    }
    function withResponse(r, f) {
-      if (_.has(r, 'Right')) {
-         f(r.Right);
+      if (_.has(r, 'success')) {
+         f(r.success);
       } else {
-         console.error(r.Left);
-         alert(r.Left);
+         console.error(r.failure);
+         alert(r.failure);
       }
    }
 
