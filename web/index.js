@@ -79,7 +79,7 @@ $(function() {
                initialState[key] = value;
                component[key] = lens;
             });
-            return state;
+            return initialState;
          }
       }
    };
