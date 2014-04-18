@@ -25,7 +25,7 @@ $(function() {
          // Install the lenses in the component, create initial state.
          getInitialState: function () {
             var component = this;
-            var state = {};
+            var initialState = {};
             _.forOwn(config, function (value, key) {
                // Assigning to a var gives us, effectively, a permanent this pointer.
                // This, in turn, allows us to 'peel off' the functions, i.e. use references to them without calling them,
@@ -76,7 +76,7 @@ $(function() {
                      return ps;
                   }
                };
-               state[key] = value;
+               initialState[key] = value;
                component[key] = lens;
             });
             return state;
@@ -264,7 +264,7 @@ $(function() {
                   });
                });
             }
-            return h.div(null, 
+            return h.div({ className: 'container' }, 
                h.div(null, 
                   h.button({ onClick: doCreateUser, disabled: ! self.newUser.get() }, 'Create User'), ' ',
                   h.input(self.newUser.bindInput({ type: 'text' }))),
