@@ -29,7 +29,7 @@ Stops the server, builds the project, then starts the server (feeling lucky?).
 Design Notes
 ------------
 
-I eschewed REST here just to see what it would look like when HTTP is not part of the application stack.  In this scheme, HTTP is viewed merely as a transport layer and JSON is the transport format.  Thus the only error codes from HTTP are the following:
+I eschewed REST here just to see what it would look like when HTTP is not part of the application stack.  In this scheme, HTTP is viewed merely as a transport layer and JSON is the transport format.  Thus, the only error codes from HTTP are the following:
 
 * 404 - bad url.
 * 400 - the message body is not parsable as JSON.
@@ -43,5 +43,5 @@ Road Map
 --------
 
 * Make the DB a separate process, give it a CLI and/or a web admin page.
-* Get rid of the 400 and 500 errors: bad input and server failure should be modeled in the response payload.
+* Get rid of the 400 and 500 errors: bad input and api failure should be modeled in the response payload. Only the server will send HTTP errors.
 * Throw in Bootstrap and make the UI a little prettier.  Then, use this as a sanbox for wrapping Bootstrap in React.
