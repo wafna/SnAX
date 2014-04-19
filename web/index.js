@@ -215,6 +215,7 @@ $(function() {
                         });
                      } else {
                         alert('Invalid login: ' + loginName);
+                        $('#login-name').focus();
                      }
                   });
                });
@@ -257,23 +258,28 @@ $(function() {
                   call('postCreateMessage').
                         listUsers('list-users').
                         listMessagesSent('sent-messages', userId).
-                        listMessagesReceived('received-messages', userId).call().done(function (data) {
+                        listMessagesReceived('received-messages', userId).
+                        call().done(function (data) {
                      withResponse(data['list-users'], updateUsers);
                      withResponse(data['sent-messages'], self.sentMessages.set);
                      withResponse(data['received-messages'], self.receivedMessages.set);
                   });
                });
             }
-            return h.div({ className: 'container' }, 
+            return h.div({ className: 'container' },
+               h.h2(null, 'Snap Chat, powered by ', h.img({ src: 'images/haskell.jpg'})),
+               h.br(),
                h.div(null, 
-                  h.button({ onClick: doCreateUser, disabled: ! self.newUser.get() }, 'Create User'), ' ',
+                  h.button({ onClick: doCreateUser, type: 'button', className: 'btn-primary', disabled: ! self.newUser.get() }, 'Create User'), ' ',
                   h.input(self.newUser.bindInput({ type: 'text' }))),
+               h.br(),
                h.div(null, !! self.user.get() ? 
                   h.div(null, 
-                     'Welcome ' + self.user.get().name, 
-                     h.button({ onClick: doLogout }, 'Logout'),
+                     h.button({ type: 'button', className: 'btn-danger', onClick: doLogout }, 'Logout'),
+                     ' Welcome ' + self.user.get().name, 
                      h.div(null, 
-                        h.div(null,
+                        h.div({ className: 'well' },
+                           h.h4(null, 'Create Message'),
                            h.span(null, 'Recipients: '),
                            _.map(self.allUsers.get(), function (user) {
                               return h.span({key:user.name}, user.name, h.input({ type: 'checkbox', checked: self.recipients.get()[user.id], onChange: function(e) {
@@ -286,22 +292,27 @@ $(function() {
                            h.br(),
                            h.span(null, 'Message: '),
                            h.input(self.message.bindInput({ type: 'text' })),
-                           h.button({ onClick: createMessage }, 'Send')),
-                        h.div(null, 
-                           h.span(null, '<<< Received'),
-                           _.map(self.receivedMessages.get(), function (message) {
-                              console.log('rcvd ' + message.id);
-                              return h.div({key: message.id}, message.content);
-                           })),
-                        h.div(null, 
-                           h.span(null, '>>> Sent'),
-                           _.map(self.sentMessages.get(), function (message) {
-                              console.log('sent ' + message.id);
-                              return h.div({key: message.id}, message.content);
-                           })))) :
+                           h.button({ onClick: createMessage }, 'Send'),
+                           h.br()),
+                        h.div({ className: 'row' },
+                           h.div({ className: 'col-lg-4' },
+                              h.span({ className: 'glyphicon glyphicon-arrow-up' }), h.span(null, 'Received'),
+                              _.map(self.receivedMessages.get(), function (message) {
+                                 console.log('rcvd ' + message.id);
+                                 return h.div({key: message.id}, message.content);
+                              })),
+                           h.div({ className: 'col-lg-4' },
+                              h.span({ className: 'glyphicon glyphicon-arrow-down' }), h.span(null, 'Sent'),
+                              _.map(self.sentMessages.get(), function (message) {
+                                 console.log('sent ' + message.id);
+                                 return h.div({key: message.id}, message.content);
+                              }))))) :
                   h.div(null, 
-                     h.button({ onClick: doLogin, disabled: ! self.login.get() }, 'Login'), ' ',
-                     h.input(self.login.bindInput({ type: 'text' })))));
+                     h.button({ onClick: doLogin, disabled: ! self.login.get(), type: 'button', className: 'btn-success' }, 'Login'), ' ',
+                     h.input(self.login.bindInput({ id: 'login-name', type: 'text' })))));
+         },
+         componentDidMount: function () {
+            $('#login-name').focus();
          }
       });
 
