@@ -11,5 +11,5 @@ cabal.sandbox.config
 cabal.config
 build.log
 log/
-server.pid
+pid.*
 state/
