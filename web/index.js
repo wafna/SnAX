@@ -298,13 +298,11 @@ $(function() {
                            h.div({ className: 'col-lg-4' },
                               h.span({ className: 'glyphicon glyphicon-arrow-up' }), h.span(null, 'Received'),
                               _.map(self.receivedMessages.get(), function (message) {
-                                 console.log('rcvd ' + message.id);
                                  return h.div({key: message.id}, message.content);
                               })),
                            h.div({ className: 'col-lg-4' },
                               h.span({ className: 'glyphicon glyphicon-arrow-down' }), h.span(null, 'Sent'),
                               _.map(self.sentMessages.get(), function (message) {
-                                 console.log('sent ' + message.id);
                                  return h.div({key: message.id}, message.content);
                               }))))) :
                   h.div(null, 
@@ -315,9 +313,7 @@ $(function() {
             $('#login-name').focus();
          }
       });
-
-   })('*** scope for main ui ***');
-
-
+   })();
+   
    React.renderComponent(Page(), domId('api-test-form'));
 });
