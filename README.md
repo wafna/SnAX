@@ -8,7 +8,7 @@ This is a small demonstration project in Haskell exploring using the Snap web fr
 Building
 --------
 
-The provided mk file should do all the work.  Most of it defers to cabal but it also does some server management.  A minor change to EXE_PATH on line 17 should get it to run on Nixes.  Alternatively you could just use cabal and run and stop the executables manually.
+The provided mk file should do all the work.  Most of it defers to cabal but it also does some server management.  A minor change to EXE on line 16 should get it to run on Nixes.  Alternatively you could just use cabal and run and stop the executables manually.
 
     mk build db
     mk build ws
