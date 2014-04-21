@@ -84,8 +84,6 @@ $(function() {
       }
    };
 
-
-
    // insists on exactly one element, returns the one element.
    function domId(id) {
       var $el = $('#' + id);
@@ -95,21 +93,20 @@ $(function() {
 
    //-- app
 
-   // creates an object that fluently accumulate rpc calls and then sends them.
+   // creates an object that fluently accumulates rpc calls and then sends them.
    // tag goes into the query string to identify the call
-   function call(tag) {
+   function rpc(tag) {
       __assert(_.isUndefined(this), 'Do not new or bind this function.');
       // accumulates the tagged rpc calls.
       var accum = {};
       var proxy; // permanent this.
       function add(t, f) {
-         var params = _.tail(arguments[2]);
          __assert(!_.isUndefined(t), 'tag required.');
          __assert(_.isString(t), 'tag must be a string: ' + t);
          __assert(!_.isUndefined(f), 'function required.');
          __assert(_.isString(f), 'function must be a string: ' + f);
          // NB we simply discard the first two arguments to get the list of params.
-         accum[t] = { name: f, params: params };
+         accum[t] = { name: f, params: _.tail(arguments[2]) };
          return proxy;
       }
       proxy = {
@@ -137,12 +134,16 @@ $(function() {
             return add(tag, 'createMessage', arguments);
          },
          listMessagesSent: function (tag, sender) {
-            __assert(!_.isUndefined(sender), 'sender required.');
+            __assert(_.isNumber(sender), 'sender required.');
             return add(tag, 'listMessagesSent', arguments);
          },
          listMessagesReceived: function (tag, recipient) {
-            __assert(!_.isUndefined(recipient), 'recipient required.');
+            __assert(_.isNumber(recipient), 'recipient required.');
             return add(tag, 'listMessagesReceived', arguments);
+         },
+         deleteMessage: function (tag, messageId) {
+            __assert(_.isNumber(messageId), 'messageId required.');
+            return add(tag, 'deleteMessage', arguments);
          }
       };
       return proxy;
@@ -160,6 +161,9 @@ $(function() {
    var h = React.DOM;
 
    var Page = (function () {
+      function focusLogin() {
+         $('#login-name').focus();
+      }
       return React.createClass({
          displayName: 'SnapChat',
          mixins: 
@@ -191,7 +195,7 @@ $(function() {
             }
             function doCreateUser() {
                var tag = 'create-user';
-               call('doCreateUser').createUser(tag, self.newUser.get()).call().done(function (data) {
+               rpc('doCreateUser').createUser(tag, self.newUser.get()).call().done(function (data) {
                   withResponse(data[tag], function (v) {
                      console.log('created user: ' + v);
                   });
@@ -200,11 +204,11 @@ $(function() {
             function doLogin() {
                var tag = 'login';
                var loginName = self.login.get();
-               call('doLogin').getUserByName(tag, loginName).call().done(function (data) {
+               rpc('doLogin').getUserByName(tag, loginName).call().done(function (data) {
                   withResponse(data[tag], function(user) {
                      if (user) {
                         self.user.set(user);
-                        call('postLogin').
+                        rpc('postLogin').
                               listUsers('list-users').
                               listMessagesSent('sent-messages', user.id).
                               listMessagesReceived('received-messages', user.id).
@@ -215,7 +219,7 @@ $(function() {
                         });
                      } else {
                         alert('Invalid login: ' + loginName);
-                        $('#login-name').focus();
+                        focusLogin();
                      }
                   });
                });
@@ -237,8 +241,20 @@ $(function() {
             }
             function doNewMessage() {
                var tag = 'list-users';
-               call('newMessage').listUsers(tag).call().done(function (data) {
+               rpc('newMessage').listUsers(tag).call().done(function (data) {
                   withResponse(data[tag], updateUsers);
+               });
+            }
+            function update(tag) {
+               var userId = self.user.get().id;
+               rpc(tag).
+                     listUsers('list-users').
+                     listMessagesSent('sent-messages', userId).
+                     listMessagesReceived('received-messages', userId).
+                     call().done(function (data) {
+                  withResponse(data['list-users'], updateUsers);
+                  withResponse(data['sent-messages'], self.sentMessages.set);
+                  withResponse(data['received-messages'], self.receivedMessages.set);
                });
             }
             function createMessage() {
@@ -248,26 +264,24 @@ $(function() {
                   on && a.push(parseInt(id, 10));
                   return a;
                }, []);
-               call('createMessage').createMessage(tag, self.user.get().id, rs, self.message.get()).call().done(function (data) {
+               rpc('create-message').createMessage(tag, self.user.get().id, rs, self.message.get()).call().done(function (data) {
                   withResponse(data[tag], function (v) {
                      console.log('created message: ' + v.messageId);
                   });
                   self.message.revert();
                   self.recipients.revert();
-                  var userId = self.user.get().id;
-                  call('postCreateMessage').
-                        listUsers('list-users').
-                        listMessagesSent('sent-messages', userId).
-                        listMessagesReceived('received-messages', userId).
-                        call().done(function (data) {
-                     withResponse(data['list-users'], updateUsers);
-                     withResponse(data['sent-messages'], self.sentMessages.set);
-                     withResponse(data['received-messages'], self.receivedMessages.set);
-                  });
+                  update('post-create-message');
+               });
+            }
+            function deleteMessage(messageId) {
+               var tag = 'delete-message';
+               rpc('delete-message').deleteMessage(tag, messageId).call().done(function(data) {
+                  console.log(data);
+                  update('post-delete-message');
                });
             }
             return h.div({ className: 'container' },
-               h.h2(null, 'Snap Chat, powered by ', h.img({ src: 'images/haskell.jpg'})),
+               h.h2(null, 'Snap Chat, powered by ', h.img({ src: 'images/haskell.jpg' })),
                h.br(),
                h.div(null, 
                   h.button({ onClick: doCreateUser, type: 'button', className: 'btn-primary', disabled: ! self.newUser.get() }, 'Create User'), ' ',
@@ -282,7 +296,7 @@ $(function() {
                            h.h4(null, 'Create Message'),
                            h.span(null, 'Recipients: '),
                            _.map(self.allUsers.get(), function (user) {
-                              return h.span({key:user.name}, user.name, h.input({ type: 'checkbox', checked: self.recipients.get()[user.id], onChange: function(e) {
+                              return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: self.recipients.get()[user.id], onChange: function(e) {
                                  self.recipients.mutate(function(rs) {
                                     rs[user.id] = e.target.checked;
                                     return rs;
@@ -295,22 +309,37 @@ $(function() {
                            h.button({ onClick: createMessage }, 'Send'),
                            h.br()),
                         h.div({ className: 'row' },
-                           h.div({ className: 'col-lg-4' },
-                              h.span({ className: 'glyphicon glyphicon-arrow-up' }), h.span(null, 'Received'),
-                              _.map(self.receivedMessages.get(), function (message) {
-                                 return h.div({key: message.id}, message.content);
-                              })),
-                           h.div({ className: 'col-lg-4' },
-                              h.span({ className: 'glyphicon glyphicon-arrow-down' }), h.span(null, 'Sent'),
-                              _.map(self.sentMessages.get(), function (message) {
-                                 return h.div({key: message.id}, message.content);
-                              }))))) :
+                           MessageList({ title: 'Received', glyph: 'glyphicon-arrow-up', messages: self.receivedMessages.get(), deleteMessage: deleteMessage }),
+                           MessageList({ title: 'Sent', glyph: 'glyphicon-arrow-down', messages: self.sentMessages.get(), deleteMessage: deleteMessage })))) :
                   h.div(null, 
                      h.button({ onClick: doLogin, disabled: ! self.login.get(), type: 'button', className: 'btn-success' }, 'Login'), ' ',
                      h.input(self.login.bindInput({ id: 'login-name', type: 'text' })))));
          },
-         componentDidMount: function () {
-            $('#login-name').focus();
+         componentDidMount: focusLogin
+      });
+   })();
+
+   var MessageList = (function () {
+      return React.createClass({
+         propTypes: {
+            deleteMessage: React.PropTypes.func.isRequired,
+            messages: React.PropTypes.array.isRequired,
+            title: React.PropTypes.string.isRequired
+         },
+         render: function () {
+            var self = this;
+            function onDeleteMessage(messageId) {
+               return function () {
+                  self.props.deleteMessage(messageId);
+               }
+            }
+            return h.div({ className: 'col-lg-4' },
+               h.span({ className: 'glyphicon ' + this.props.glyph }), h.span(null, this.props.title),
+               _.map(this.props.messages, function (message) {
+                  return h.div({key: message.id}, 
+                     h.span({ className: 'glyphicon glyphicon-remove', onClick: onDeleteMessage(message.id) }), 
+                     message.content, ' - ', moment.unix(message.time.time).fromNow());
+               }));
          }
       });
    })();

@@ -7,7 +7,7 @@ module SnapChatCommon (ADB, DB(..), Table(..),
     Message(..),  MessageId(..), MessageOwner(..), MessageRecipient(..), MessageTime(..)
     ) where
 
-import Prelude hiding (words, concat, id)
+import Prelude hiding (words, concat, id, null)
 
 import Data.Acid
 
@@ -17,13 +17,10 @@ import Data.SafeCopy
 
 import Data.Int
 import Data.Data
-import Data.Text hiding (empty)
+import Data.Text hiding (empty, null)
 import Data.IxSet
 import Data.Typeable()
 import Data.Time.Clock.POSIX
-
--- so clients don't have to import AcidState
-type ADB = AcidState DB
 
 ------------------------------------------------------
 -- the domain.
@@ -39,14 +36,18 @@ newtype UserId = UserId Int64
 newtype UserName = UserName Text
   deriving (Eq, Ord, Typeable, Show, Data)
 
+instance Ord User where
+   compare p q = compare (userId p) (userId q)
+
 instance Indexable User where
    empty = ixSet 
       [ ixFun $ \ u -> [userId u]
       , ixFun $ \ u -> [userName u]
       ]
 
-instance Ord User where
-   compare p q = compare (userId p) (userId q)
+$(deriveSafeCopy 0 'base ''User)
+$(deriveSafeCopy 0 'base ''UserId)
+$(deriveSafeCopy 0 'base ''UserName)
 
 data Message = Message 
   { messageId :: MessageId
@@ -55,6 +56,9 @@ data Message = Message
   , messageTime :: MessageTime
   , messageContent :: MessageContent 
   } deriving (Eq, Typeable, Show, Data)
+
+instance Ord Message where
+   compare p q = compare (messageId p) (messageId q)
 
 newtype MessageId = MessageId Int64
   deriving (Eq, Ord, Typeable, Show, Data)
@@ -70,9 +74,6 @@ newtype MessageTime = MessageTime POSIXTime
 
 type MessageContent = Text
 
-instance Ord Message where
-   compare p q = compare (messageId p) (messageId q)
-
 newtype Word = Word Text
   deriving (Eq, Ord, Typeable, Show, Data)
 
@@ -85,6 +86,12 @@ instance Indexable Message where
       , ixFun $ \ m -> [messageTime m]
       ]
 
+$(deriveSafeCopy 0 'base ''Message)
+$(deriveSafeCopy 0 'base ''MessageTime)
+$(deriveSafeCopy 0 'base ''MessageOwner)
+$(deriveSafeCopy 0 'base ''MessageId)
+$(deriveSafeCopy 0 'base ''MessageRecipient)
+
 ---------------------------------------------------------
 -- the database.
 
@@ -94,21 +101,14 @@ data (Indexable a, Typeable a, Ord a) => Table a = Table { set :: IxSet a, nextI
 data DB = DB { users :: Table User, messages :: Table Message }
    deriving (Typeable)
 
-$(deriveSafeCopy 0 'base ''Message)
-$(deriveSafeCopy 0 'base ''MessageTime)
-$(deriveSafeCopy 0 'base ''MessageOwner)
-$(deriveSafeCopy 0 'base ''MessageId)
-$(deriveSafeCopy 0 'base ''MessageRecipient)
-
-$(deriveSafeCopy 0 'base ''User)
-$(deriveSafeCopy 0 'base ''UserId)
-$(deriveSafeCopy 0 'base ''UserName)
-
 $(deriveSafeCopy 0 'base ''Table)
 $(deriveSafeCopy 0 'base ''DB)
 
+-- so clients don't have to import AcidState
+type ADB = AcidState DB
+
 ------------------------------------------------------
--- the api.
+-- the internal api.
 
 createUserDB :: Text -> Update DB (Either Text UserId)
 createUserDB name = do 
@@ -116,14 +116,14 @@ createUserDB name = do
     let t = users db
     let s = set t
     -- enforce uniqueness of user names
-    case toList $ s @= (UserName name) of
-        [] -> do
-            let id = nextId t
-            let uid = UserId id
-            let s' = insert (User uid (UserName name)) s
-            put $ db { users = Table s' (1 + id) }
-            return $ Right uid
-        _ -> return $ Left $ concat ["Duplicate name: ", name]
+    case null $ s @= (UserName name) of
+      True -> do
+        let id = nextId t
+        let uid = UserId id
+        let s' = insert (User uid (UserName name)) s
+        put $ db { users = Table s' (1 + id) }
+        return $ Right uid
+      False -> return $ Left $ concat ["Duplicate name: ", name]
 
 getUserByNameDB :: Text -> Query DB (Maybe User)
 getUserByNameDB name = do
@@ -191,9 +191,13 @@ listMessagesSentDB id = do
     db <- ask
     return $ toList $ (set $ messages db) @= (MessageOwner id)
 
-$(makeAcidic ''DB ['createUserDB, 'deleteUserDB, 'listUsersDB, 'getUserByIdDB, 'getUserByNameDB, 'createMessageDB, 'deleteMessageDB, 'listMessagesSentDB, 'listMessagesReceivedDB])
+$(makeAcidic ''DB 
+  [ 'createUserDB, 'deleteUserDB, 'listUsersDB, 'getUserByIdDB, 'getUserByNameDB
+  , 'createMessageDB, 'deleteMessageDB, 'listMessagesSentDB, 'listMessagesReceivedDB
+  ])
 
--- the direct API
+------------------------------------------------------
+-- the external api.
 
 createUser :: Text -> ADB -> IO (Either Text UserId)
 createUser name db = update db (CreateUserDB name)
