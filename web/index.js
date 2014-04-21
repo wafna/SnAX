@@ -110,12 +110,25 @@ $(function() {
          return proxy;
       }
       proxy = {
+         /**
+          * Executes the accumulated RPC calls.
+          */
          call: function () {
             __assert(_.keys(accum).length, 'No calls to execute.');
-            return Q($.ajax({ type: 'POST', url: '/api?tag=' + encodeURIComponent(tag), data: JSON.stringify(accum), dataType: 'json'
-            })).fail(function () {
-               console.log('error ' + JSON.stringify(arguments)); 
+            var q = Q.defer();
+            Q($.ajax({ type: 'POST', url: '/api?tag=' + encodeURIComponent(tag), data: JSON.stringify(accum), dataType: 'json'
+            })).done(function (r) {
+               if (_.has(r, 'success')) {
+                  q.resolve(r.success);
+               } else {
+                  console.error(r.failure);
+                  alert(r.failure);
+                  q.reject(r.failure);
+               }
+            }, function () {
+               console.log('HTTP error ' + JSON.stringify(arguments)); 
             });
+            return q.promise;
          },
          listUsers: function (tag) {
             return add(tag, 'listUsers', arguments);
