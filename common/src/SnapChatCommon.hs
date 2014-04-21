@@ -199,32 +199,34 @@ $(makeAcidic ''DB
 ------------------------------------------------------
 -- the external api.
 
-createUser :: Text -> ADB -> IO (Either Text UserId)
+type SnapChatAPI a = ADB -> IO a
+
+createUser :: Text -> SnapChatAPI (Either Text UserId)
 createUser name db = update db (CreateUserDB name)
 
-deleteUser :: UserId -> ADB -> IO Bool
+deleteUser :: UserId -> SnapChatAPI Bool
 deleteUser id db = update db (DeleteUserDB id)
 
-getUserByName :: Text -> ADB -> IO (Maybe User)
+getUserByName :: Text -> SnapChatAPI (Maybe User)
 getUserByName name db = query db (GetUserByNameDB name)
 
-getUserById :: UserId -> ADB -> IO (Maybe User)
+getUserById :: UserId -> SnapChatAPI (Maybe User)
 getUserById id db = query db (GetUserByIdDB id)
 
-listUsers :: ADB -> IO [User]
+listUsers :: SnapChatAPI [User]
 listUsers db = query db (ListUsersDB)
 
-createMessage :: UserId -> [UserId] -> Text -> ADB -> IO MessageId
+createMessage :: UserId -> [UserId] -> Text -> SnapChatAPI MessageId
 createMessage owner recipients content db = do
     t <- getPOSIXTime
     update db (CreateMessageDB owner recipients t content)
 
-deleteMessage :: MessageId -> ADB -> IO Bool
+deleteMessage :: MessageId -> SnapChatAPI Bool
 deleteMessage id db = update db (DeleteMessageDB id)
 
-listMessagesSent :: UserId -> ADB -> IO [Message]
+listMessagesSent :: UserId -> SnapChatAPI [Message]
 listMessagesSent owner db = query db (ListMessagesSentDB owner)
 
-listMessagesReceived :: UserId -> ADB -> IO [Message]
+listMessagesReceived :: UserId -> SnapChatAPI [Message]
 listMessagesReceived recipient db = query db (ListMessagesReceivedDB recipient)
 
