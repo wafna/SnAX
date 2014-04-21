@@ -71,12 +71,6 @@ instance ToJSON REither where
     RSuccess v -> object ["success" .= v]
     RFailure v -> object ["failure" .= v]
 
---withDB :: IO ADB
---withDB :: openRemoteState verifySharedSecret "localhost" (PortNumber 8001)
---  where
---  verifySharedSecret :: CommChannel -> IO ()
---  verifySharedSecret _ = return ()
-
 main :: IO ()
 main = do
   db <- openRemoteState verifySharedSecret "localhost" (PortNumber 8001)
