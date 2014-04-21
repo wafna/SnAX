@@ -105,6 +105,7 @@ $(function() {
          __assert(_.isString(t), 'tag must be a string: ' + t);
          __assert(!_.isUndefined(f), 'function required.');
          __assert(_.isString(f), 'function must be a string: ' + f);
+         __assert(!_.has(accum, t), 'call \'' + t + '\' already defined.');
          // NB we simply discard the first two arguments to get the list of params.
          accum[t] = { name: f, params: _.tail(arguments[2]) };
          return proxy;
@@ -161,12 +162,14 @@ $(function() {
       };
       return proxy;
    }
-   function withResponse(r, f) {
-      if (_.has(r, 'success')) {
-         f(r.success);
+   function withResponse(r, t, f) {
+      var d = r[t];
+      __assert(_.isObject(d), "No response object for tag '" + t + "' in: " + JSON.stringify(r));
+      if (_.has(d, 'success')) {
+         f(d.success);
       } else {
-         console.error(r.failure);
-         alert(r.failure);
+         console.error(d.failure);
+         alert(d.failure);
       }
    }
 
@@ -174,8 +177,109 @@ $(function() {
    var h = React.DOM;
 
    var Page = (function () {
-      function focusLogin() {
-         $('#login-name').focus();
+      var self;
+      function updateUsers(allUsers) {
+         self.allUsers.set(allUsers);
+         self.recipients.set(_.reduce(allUsers, function (rs, u) {
+            rs[u.id] = false;
+            return rs;
+         }, {}));
+      }
+      function addRecipient(user) {
+         self.recipients.mutate(function (rs) {
+            rs[user.name] = user;
+            return rs;
+         });
+      }
+      function removeRecipient(user) {
+         recipient.mutate(function (rs) {
+            delete rs[user.name];
+            return rs;
+         });
+      }
+      function doCreateUser() {
+         var tag = 'create-user';
+         rpc('doCreateUser').createUser(tag, self.newUser.get()).call().done(function (data) {
+            withResponse(data, tag, function (v) {
+               console.log('created user: ' + v);
+            });
+         });
+      }
+      function doLogin(loginName) {
+         return function() {
+            var tag = 'login';
+            __assert(_.isString(loginName), 'login name required but got ' + loginName);
+            rpc('do-login').getUserByName(tag, loginName).call().done(function (data) {
+               withResponse(data, tag, function(user) {
+                  if (user) {
+                     self.user.set(user);
+                     rpc('post-login').
+                           listUsers('list-users').
+                           listMessagesSent('sent-messages', user.id).
+                           listMessagesReceived('received-messages', user.id).
+                           call().done(function(data) {
+                        withResponse(data, 'list-users', updateUsers);
+                        withResponse(data, 'sent-messages', self.sentMessages.set);
+                        withResponse(data, 'received-messages', self.receivedMessages.set);
+                     });
+                  } else {
+                     alert('Invalid login: ' + loginName);
+                  }
+               });
+            });
+         }
+      }
+      function doLogout() {
+         self.user.revert();
+         self.allUsers.revert();
+         self.message.revert();
+         self.recipients.revert();
+         self.sentMessages.revert();
+         self.receivedMessages.revert();
+         rpc('do-logout').listUsers('list-users').call().done(function (data) {
+            withResponse(data, 'list-users', updateUsers);
+         });
+      }
+      function doNewMessage() {
+         var tag = 'list-users';
+         rpc('newMessage').listUsers(tag).call().done(function (data) {
+            withResponse(data, tag, updateUsers);
+         });
+      }
+      function update(tag) {
+         var userId = self.user.get().id;
+         rpc(tag).
+               listUsers('list-users').
+               listMessagesSent('sent-messages', userId).
+               listMessagesReceived('received-messages', userId).
+               call().done(function (data) {
+            withResponse(data, 'list-users', updateUsers);
+            withResponse(data, 'sent-messages', self.sentMessages.set);
+            withResponse(data, 'received-messages', self.receivedMessages.set);
+         });
+      }
+      function createMessage() {
+         var tag = 'create-message';
+         var rr = self.recipients.get();
+         var rs = _.reduce(rr, function(a, on, id) {
+            on && a.push(parseInt(id, 10));
+            return a;
+         }, []);
+         rpc('create-message').createMessage(tag, self.user.get().id, rs, self.message.get()).call().done(function (data) {
+            withResponse(data, tag, function (v) {
+               console.log('created message: ' + v.messageId);
+            });
+            self.message.revert();
+            self.recipients.revert();
+            update('post-create-message');
+         });
+      }
+      function deleteMessage(messageId) {
+         var tag = 'delete-message';
+         rpc('delete-message').deleteMessage(tag, messageId).call().done(function (data) {
+            console.log(data);
+            update('post-delete-message');
+         });
       }
       return React.createClass({
          displayName: 'SnapChat',
@@ -191,108 +295,15 @@ $(function() {
                receivedMessages: []
             })
          ],
+         getInitialState: function () {
+            self = this; // this is the first opportunity.
+         },
+         componentDidMount: function () {
+            rpc('page-init').listUsers('list-users').call().done(function (data) {
+               withResponse(data, 'list-users', updateUsers);
+            });
+         },
          render: function () {
-            var self = this;
-
-            function addRecipient(user) {
-               self.recipients.mutate(function (rs) {
-                  rs[user.name] = user;
-                  return rs;
-               });
-            }
-            function removeRecipient(user) {
-               recipient.mutate(function (rs) {
-                  delete rs[user.name];
-                  return rs;
-               });
-            }
-            function doCreateUser() {
-               var tag = 'create-user';
-               rpc('doCreateUser').createUser(tag, self.newUser.get()).call().done(function (data) {
-                  withResponse(data[tag], function (v) {
-                     console.log('created user: ' + v);
-                  });
-               });
-            }
-            function doLogin() {
-               var tag = 'login';
-               var loginName = self.login.get();
-               rpc('doLogin').getUserByName(tag, loginName).call().done(function (data) {
-                  withResponse(data[tag], function(user) {
-                     if (user) {
-                        self.user.set(user);
-                        rpc('postLogin').
-                              listUsers('list-users').
-                              listMessagesSent('sent-messages', user.id).
-                              listMessagesReceived('received-messages', user.id).
-                              call().done(function(data) {
-                           withResponse(data['sent-messages'], self.sentMessages.set);
-                           withResponse(data['received-messages'], self.receivedMessages.set);
-                           withResponse(data['list-users'], updateUsers);
-                        });
-                     } else {
-                        alert('Invalid login: ' + loginName);
-                        focusLogin();
-                     }
-                  });
-               });
-            }
-            function doLogout() {
-               self.user.revert();
-               self.allUsers.revert();
-               self.message.revert();
-               self.recipients.revert();
-               self.sentMessages.revert();
-               self.receivedMessages.revert();
-            }
-            function updateUsers(allUsers) {
-               self.allUsers.set(allUsers);
-               self.recipients.set(_.reduce(allUsers, function (rs, u) {
-                  rs[u.id] = false;
-                  return rs;
-               }, {}));
-            }
-            function doNewMessage() {
-               var tag = 'list-users';
-               rpc('newMessage').listUsers(tag).call().done(function (data) {
-                  withResponse(data[tag], updateUsers);
-               });
-            }
-            function update(tag) {
-               var userId = self.user.get().id;
-               rpc(tag).
-                     listUsers('list-users').
-                     listMessagesSent('sent-messages', userId).
-                     listMessagesReceived('received-messages', userId).
-                     call().done(function (data) {
-                  withResponse(data['list-users'], updateUsers);
-                  withResponse(data['sent-messages'], self.sentMessages.set);
-                  withResponse(data['received-messages'], self.receivedMessages.set);
-               });
-            }
-            function createMessage() {
-               var tag = 'create-message';
-               var rr = self.recipients.get();
-               var rs = _.reduce(rr, function(a, on, id) {
-                  on && a.push(parseInt(id, 10));
-                  return a;
-               }, []);
-               rpc('create-message').createMessage(tag, self.user.get().id, rs, self.message.get()).call().done(function (data) {
-                  withResponse(data[tag], function (v) {
-                     console.log('created message: ' + v.messageId);
-                  });
-                  self.message.revert();
-                  self.recipients.revert();
-                  update('post-create-message');
-               });
-            }
-            function deleteMessage(messageId) {
-               var tag = 'delete-message';
-               rpc('delete-message').deleteMessage(tag, messageId).call().done(function(data) {
-                  console.log(data);
-                  update('post-delete-message');
-               });
-            }
             return h.div({ className: 'container' },
                h.h2(null, 'Snap Chat, powered by ', h.img({ src: 'images/haskell.jpg' })),
                h.br(),
@@ -303,7 +314,7 @@ $(function() {
                h.div(null, !! self.user.get() ? 
                   h.div(null, 
                      h.button({ type: 'button', className: 'btn-danger', onClick: doLogout }, 'Logout'),
-                     ' Welcome ' + self.user.get().name, 
+                     ' Welcome, ', h.em(null, self.user.get().name),
                      h.div(null, 
                         h.div({ className: 'well' },
                            h.h4(null, 'Create Message'),
@@ -325,10 +336,11 @@ $(function() {
                            MessageList({ title: 'Received', glyph: 'glyphicon-arrow-up', messages: self.receivedMessages.get(), deleteMessage: deleteMessage }),
                            MessageList({ title: 'Sent', glyph: 'glyphicon-arrow-down', messages: self.sentMessages.get(), deleteMessage: deleteMessage })))) :
                   h.div(null, 
-                     h.button({ onClick: doLogin, disabled: ! self.login.get(), type: 'button', className: 'btn-success' }, 'Login'), ' ',
-                     h.input(self.login.bindInput({ id: 'login-name', type: 'text' })))));
+                     h.span(null, 'Login: '),
+                     _.map(self.allUsers.get(), function(user) {
+                        return h.span({ key: user.id }, h.a({ onClick: doLogin(user.name) }, user.name), ' ');
+                     }))));
          },
-         componentDidMount: focusLogin
       });
    })();
 
@@ -339,6 +351,7 @@ $(function() {
             messages: React.PropTypes.array.isRequired,
             title: React.PropTypes.string.isRequired
          },
+         displayName: 'MessageList',
          render: function () {
             var self = this;
             function onDeleteMessage(messageId) {
