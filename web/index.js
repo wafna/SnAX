@@ -8,7 +8,9 @@ $(function() {
    function __assert(cond) {
       cond || __error.apply(null, _.tail(arguments));
    }
-
+   function __assertString(v, n) {
+      __assert(_.isString(v), "'" + n + "' must be a string: " + n);
+   }
 
    /**
     * Adds lenses on a component's state to a component.
@@ -117,8 +119,7 @@ $(function() {
          call: function () {
             __assert(_.keys(accum).length, 'No calls to execute.');
             var q = Q.defer();
-            Q($.ajax({ type: 'POST', url: '/api?tag=' + encodeURIComponent(tag), data: JSON.stringify(accum), dataType: 'json'
-            })).done(function (r) {
+            Q($.ajax({ type: 'POST', url: '/api?tag=' + encodeURIComponent(tag), data: JSON.stringify(accum), dataType: 'json'})).done(function (r) {
                if (_.has(r, 'success')) {
                   q.resolve(r.success);
                } else {
@@ -127,7 +128,9 @@ $(function() {
                   q.reject(r.failure);
                }
             }, function () {
-               console.log('HTTP error ' + JSON.stringify(arguments)); 
+               var message = 'HTTP error ' + JSON.stringify(arguments);
+               console.log(message); 
+               alert(message);
             });
             return q.promise;
          },
@@ -202,6 +205,10 @@ $(function() {
          rpc('doCreateUser').createUser(tag, self.newUser.get()).call().done(function (data) {
             withResponse(data, tag, function (v) {
                console.log('created user: ' + v);
+               self.newUser.revert();
+               rpc('post-create-user').listUsers('list-users').call().done(function (data) {
+                  withResponse(data, 'list-users', updateUsers);
+               });
             });
          });
       }
@@ -282,7 +289,7 @@ $(function() {
          });
       }
       return React.createClass({
-         displayName: 'SnapChat',
+         displayName: 'SnAX',
          mixins: 
             [LensedState({ 
                newUser: '', 
@@ -305,7 +312,12 @@ $(function() {
          },
          render: function () {
             return h.div({ className: 'container' },
-               h.h2(null, 'Snap Chat, powered by ', h.img({ src: 'images/haskell.jpg' })),
+               h.h2(null, 'SnAX, powered by ', h.img({ src: 'images/haskell.jpg' })),
+               h.span(null, 
+                  h.a({href:'http://snapframework.com'}, 'Snap'), ', ',
+                  h.a({href:'http://acid-state.seize.it'}, 'Acid State'), ', ',
+                  h.a({href:'https://hackage.haskell.org/package/ixset'}, 'IxSet'), ', and ',
+                  h.a({href:'http://facebook.github.io/react/'}, 'React')),
                h.br(),
                h.div(null, 
                   h.button({ onClick: doCreateUser, type: 'button', className: 'btn-primary', disabled: ! self.newUser.get() }, 'Create User'), ' ',
