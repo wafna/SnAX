@@ -12,8 +12,8 @@ announce ()
 	echo "-- $@"
 }
 
-# mk empty on *nix
-EXE=".exe"
+EXE=""
+[ "$(uname)" == "MINGW32_NT*" ] && EXE=".exe"
 
 cleanCabal ()
 {
