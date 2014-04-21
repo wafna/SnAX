@@ -1,4 +1,4 @@
-name: SnapChat
+name: SnAX-WS
 version: 0.1
 cabal-version: >=1.2
 build-type: Simple
@@ -6,13 +6,13 @@ license: AllRightsReserved
 license-file: ""
 maintainer: jfeingold@gmail.com
 stability: Experimental
-synopsis: SnapChat Server
+synopsis: SnAXServer
 description: Demos Snap, AcidState, IxSet
 category: Web
 author: J Feingold
 data-dir: ""
  
-executable snapchatws
+executable snaxws
     build-depends: base >=4 && <5, bytestring >=0.9.1 && <0.11,
                    MonadCatchIO-transformers >=0.2.1 && <0.4, mtl >=2 && <3,
                    snap-core >=0.9 && <0.11, snap-server >=0.9 && <0.11, aeson >=0.7,
@@ -27,7 +27,7 @@ executable snapchatws
     else
         buildable: True
         ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
-    main-is: SnapChatWS.hs
+    main-is: SnAXWS.hs
     buildable: True
     hs-source-dirs: src, ../common/src
     other-modules: 

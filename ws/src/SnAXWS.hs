@@ -29,7 +29,7 @@ import Data.Aeson.Types
 import Network
 
 
-import SnapChatCommon
+import SnAXCommon
 import StringUtils
 
 type RStr = String

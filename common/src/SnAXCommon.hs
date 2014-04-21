@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, DeriveDataTypeable, TypeFamilies, TemplateHaskell #-}
 
-module SnapChatCommon (ADB, DB(..), Table(..),
+module SnAXCommon (ADB, DB(..), Table(..),
     createUser, deleteUser, getUserByName, getUserById, listUsers,
     createMessage, deleteMessage, listMessagesSent, listMessagesReceived,
     User(..), UserId(..), UserName(..),
@@ -199,34 +199,34 @@ $(makeAcidic ''DB
 ------------------------------------------------------
 -- the external api.
 
-type SnapChatAPI a = ADB -> IO a
+type SnaxApi a = ADB -> IO a
 
-createUser :: Text -> SnapChatAPI (Either Text UserId)
+createUser :: Text -> SnaxApi (Either Text UserId)
 createUser name db = update db (CreateUserDB name)
 
-deleteUser :: UserId -> SnapChatAPI Bool
+deleteUser :: UserId -> SnaxApi Bool
 deleteUser id db = update db (DeleteUserDB id)
 
-getUserByName :: Text -> SnapChatAPI (Maybe User)
+getUserByName :: Text -> SnaxApi (Maybe User)
 getUserByName name db = query db (GetUserByNameDB name)
 
-getUserById :: UserId -> SnapChatAPI (Maybe User)
+getUserById :: UserId -> SnaxApi (Maybe User)
 getUserById id db = query db (GetUserByIdDB id)
 
-listUsers :: SnapChatAPI [User]
+listUsers :: SnaxApi [User]
 listUsers db = query db (ListUsersDB)
 
-createMessage :: UserId -> [UserId] -> Text -> SnapChatAPI MessageId
+createMessage :: UserId -> [UserId] -> Text -> SnaxApi MessageId
 createMessage owner recipients content db = do
     t <- getPOSIXTime
     update db (CreateMessageDB owner recipients t content)
 
-deleteMessage :: MessageId -> SnapChatAPI Bool
+deleteMessage :: MessageId -> SnaxApi Bool
 deleteMessage id db = update db (DeleteMessageDB id)
 
-listMessagesSent :: UserId -> SnapChatAPI [Message]
+listMessagesSent :: UserId -> SnaxApi [Message]
 listMessagesSent owner db = query db (ListMessagesSentDB owner)
 
-listMessagesReceived :: UserId -> SnapChatAPI [Message]
+listMessagesReceived :: UserId -> SnaxApi [Message]
 listMessagesReceived recipient db = query db (ListMessagesReceivedDB recipient)
 

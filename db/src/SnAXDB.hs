@@ -9,7 +9,7 @@ import Control.Exception (bracket)
 
 import Network
 
-import SnapChatCommon
+import SnAXCommon
 
 main :: IO ()
 main =
