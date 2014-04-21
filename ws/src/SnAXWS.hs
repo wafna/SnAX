@@ -111,26 +111,17 @@ api :: ADB -> Snap ()
 api db = do
   body <- readRequestBody 100000
   case (eitherDecode $ blToBC body) :: Either String (Map String RPC) of
-    Left e -> writeJSON $ RFailure $ "Malformed input: cannot parse JSON: " ++ e -- setUpUsTheBomb 400 "Malformed input." $ BW.concat ["Cannot parse JSON: ", fromString e, "\n", blToBW body]
+    Left e -> writeJSON $ RFailure $ "Malformed input: cannot parse JSON: " ++ e
     Right calls -> do
       r <- liftIO $ catch (mapRPC calls db >>= return . Right) $
         \ e -> return $ Left $ show (e :: IOException)
       case r of 
-        Left e -> writeJSON $ RFailure e -- setUpUsTheBomb 500 "Internal Error" $ sToBW e
---        Right s -> writeBS $ bcToBW $ encode s
+        Left e -> writeJSON $ RFailure e
         Right s -> writeJSON $ RSuccess $ toJSON s
   where
   writeJSON = writeBS . bcToBW . encode
-{- This guy isn't needed, anymore, but remains as an example of using finishWith to exit response processing early.
-  -- Emit an error message.
-  setUpUsTheBomb :: Int -> BW.ByteString -> BW.ByteString -> Snap ()
-  setUpUsTheBomb statusCode statusMsg body = do
-      logError $ BW.concat [statusMsg, "\n", body]
-      modifyResponse $ setResponseStatus statusCode statusMsg
-      writeBS body
-      getResponse >>= finishWith
--}
--- going into and out of a list seems weak but the IO monad seems to preclude any other way.
+
+-- Convert a map of RPC calls to an map of return values.
 mapRPC :: Map String RPC -> ADB -> IO (Map String Value)
 mapRPC m db = (mapRPC' $ Map.toList m) >>= return . Map.fromList
   where
@@ -190,12 +181,12 @@ rpc db f =
   arrayToInt :: Value -> Either String [Int64]
   arrayToInt array = case array of 
     (Array a) -> a2i [] $ V.toList a
-    _ -> Left "Not an array."
+    _ -> Left $ concat ["Not an array: ", show array]
     where
     a2i :: [Int64] -> [Value] -> Either String [Int64]
     a2i is vs = case vs of
       [] -> Right $ Prelude.reverse is
       (x : xs) -> case x of
         (Number i) -> a2i (sciToInt i : is) xs
-        _ -> Left "Not a number."
+        _ -> Left $ concat ["Not a number: ", show x]
 
