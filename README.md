@@ -1,4 +1,4 @@
-SnapChat
+SnAX
 ========
 
 A simple web enabled messaging app demonstrating Snap, Acid-State, IxSet, Aeson, and React.
