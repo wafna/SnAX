@@ -36,6 +36,7 @@ $(function() {
                   // Get the state segment.
                   // This should be the only thing called from render.
                   get: function () {
+                     if (key === 'recipients') { console.log('recipients: ' + JSON.stringify(component.state[key])); }
                      return component.state[key]
                   },
                   // Set the state segment
@@ -78,7 +79,7 @@ $(function() {
                      return ps;
                   }
                };
-               initialState[key] = value;
+               initialState[key] = _.clone(value, true);
                component[key] = lens;
             });
             return initialState;
@@ -183,10 +184,6 @@ $(function() {
       var self;
       function updateUsers(allUsers) {
          self.allUsers.set(allUsers);
-         self.recipients.set(_.reduce(allUsers, function (rs, u) {
-            rs[u.id] = false;
-            return rs;
-         }, {}));
       }
       function addRecipient(user) {
          self.recipients.mutate(function (rs) {
@@ -239,8 +236,6 @@ $(function() {
       function doLogout() {
          self.user.revert();
          self.allUsers.revert();
-         self.message.revert();
-         self.recipients.revert();
          self.sentMessages.revert();
          self.receivedMessages.revert();
          rpc('do-logout').listUsers('list-users').call().done(function (data) {
@@ -265,22 +260,6 @@ $(function() {
             withResponse(data, 'received-messages', self.receivedMessages.set);
          });
       }
-      function createMessage() {
-         var tag = 'create-message';
-         var rr = self.recipients.get();
-         var rs = _.reduce(rr, function(a, on, id) {
-            on && a.push(parseInt(id, 10));
-            return a;
-         }, []);
-         rpc('create-message').createMessage(tag, self.user.get().id, rs, self.message.get()).call().done(function (data) {
-            withResponse(data, tag, function (v) {
-               console.log('created message: ' + v.messageId);
-            });
-            self.message.revert();
-            self.recipients.revert();
-            update('post-create-message');
-         });
-      }
       function deleteMessage(messageId) {
          var tag = 'delete-message';
          rpc('delete-message').deleteMessage(tag, messageId).call().done(function (data) {
@@ -291,12 +270,10 @@ $(function() {
       return React.createClass({
          displayName: 'SnAX',
          mixins: 
-            [LensedState({ 
+            [LensedState({
                newUser: '', 
                login: '', 
                user: '', 
-               message: '', 
-               recipients: {}, 
                allUsers: [],
                sentMessages: [],
                receivedMessages: []
@@ -328,22 +305,9 @@ $(function() {
                      h.button({ type: 'button', className: 'btn-danger', onClick: doLogout }, 'Logout'),
                      ' Welcome, ', h.em(null, self.user.get().name),
                      h.div(null, 
-                        h.div({ className: 'well' },
-                           h.h4(null, 'Create Message'),
-                           h.span(null, 'Recipients: '),
-                           _.map(self.allUsers.get(), function (user) {
-                              return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: self.recipients.get()[user.id], onChange: function(e) {
-                                 self.recipients.mutate(function(rs) {
-                                    rs[user.id] = e.target.checked;
-                                    return rs;
-                                 });
-                              } }));
-                           }),
-                           h.br(),
-                           h.span(null, 'Message: '),
-                           h.input(self.message.bindInput({ type: 'text' })),
-                           h.button({ onClick: createMessage }, 'Send'),
-                           h.br()),
+                        MessageComposer({ user: self.user.get(), allUsers: self.allUsers.get(), onCreateMessage: function () {
+                           update('post-create-message');
+                        }}),
                         h.div({ className: 'row' },
                            MessageList({ title: 'Received', glyph: 'glyphicon-arrow-up', messages: self.receivedMessages.get(), deleteMessage: deleteMessage }),
                            MessageList({ title: 'Sent', glyph: 'glyphicon-arrow-down', messages: self.sentMessages.get(), deleteMessage: deleteMessage })))) :
@@ -355,7 +319,86 @@ $(function() {
          },
       });
    })();
-
+   var MessageComposer = (function () {
+      var self;
+      function createMessage() {
+         var tag = 'create-message';
+         var rr = self.recipients.get();
+         var rs = _.reduce(rr, function(a, on, id) {
+            on && a.push(parseInt(id, 10));
+            return a;
+         }, []);
+         rpc('create-message').createMessage(tag, self.props.user.id, rs, self.message.get()).call().done(function (data) {
+            withResponse(data, tag, function (v) {
+               console.log('created message: ' + v.messageId);
+            });
+            self.message.revert();
+            self.recipients.revert();
+            self.props.onCreateMessage();
+         });
+         self.recipients.set(_.reduce(self.props.allUsers, function (rs, u) {
+            rs[u.id] = false;
+            return rs;
+         }, {}));
+      }
+      return React.createClass({
+         mixins: [LensedState({
+            message: '', 
+            recipients: {}, 
+            })
+         ],
+         propTypes: {
+            user: React.PropTypes.object.isRequired,
+            allUsers: React.PropTypes.array.isRequired,
+            onCreateMessage: React.PropTypes.func.isRequired
+         },
+         getInitialState: function () {
+            self = this;
+         },
+         componentWillReceiveProps : function (newProps) {
+            // we have to account for the fact that if the component updates then users may have disappeared so we must nix deleted users from the 
+            // recipients list.
+            // furthermore, we must collect all the nixes and do them in one mutation because of the way state works in React.
+            var nixed = [];
+            var umap = _.reduce(newProps.allUsers, function (a, u) {
+               a[u.id] = u;
+               return a;
+            }, {});
+            _.map(self.recipients.get(), function (recip) {
+               if (! _.has(umap, recip.id)) {
+                  nixed.push(recip.id);
+               }
+            });
+            self.recipients.mutate(function (recips) {
+               _.map(nixed, function (nix) {
+                  delete recips[nix];
+               });
+               return recips;
+            });
+         },
+         render: function () {
+            return h.div({ className: 'well' },
+               h.h4(null, 'Create Message'),
+               h.span(null, 'Recipients: '),
+               (function () {
+                  var recipients = self.recipients.get();
+                  console.log('recipients in render: ' + JSON.stringify(recipients));
+                  return _.map(self.props.allUsers, function (user) {
+                     console.log('checked ' + user.name + ' ' + user.id + ' ' + recipients[user.id]);
+                     return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: _.has(recipients, user.id), onChange: function(e) {
+                        self.recipients.mutate(function(rs) {
+                           rs[user.id] = e.target.checked;
+                           return rs;
+                        });
+                     } })) }) }) (),
+               h.br(),
+               h.span(null, 'Message: '),
+               h.input(self.message.bindInput({ type: 'text' })),
+               h.button({ onClick: createMessage }, 'Send'),
+               h.br());
+         }
+      });
+   })();
    var MessageList = (function () {
       return React.createClass({
          propTypes: {
