@@ -40,3 +40,10 @@ Road Map
 * Load tests.
 * Ponder some convenient scheme for relational consistency.
 * See if Common could be made lighter by moving as much as possible to DB.
+
+VMs
+---------
+
+* hashicorp/precise32
+$ sudo apt-get update
+$ sudo apt-get install haskell-platform

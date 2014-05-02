@@ -86,6 +86,14 @@ optAction()
 
 TARGET="$1" ; shift
 case "$TARGET" in
+	"configure" )
+		pushd db
+		cabal configure
+		popd
+		pushd ws
+		cabal configure
+		popd
+		;;
    "clean" ) optAction cleanCabal $@ ;;
    "build" ) optAction buildCabal $@ ;;
 	"start" ) optAction startServer $@ ;;

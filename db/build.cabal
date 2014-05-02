@@ -3,7 +3,7 @@ version: 0.1
 cabal-version: >=1.2
 build-type: Simple
 license: AllRightsReserved
-license-file: ""
+license-file: "../LICENSE"
 maintainer: jfeingold@gmail.com
 stability: Experimental
 synopsis: SnAX Database
