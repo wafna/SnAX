@@ -13,3 +13,4 @@ build.log
 log/
 pid.*
 state/
+.vagrant/
