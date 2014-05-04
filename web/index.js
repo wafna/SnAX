@@ -36,7 +36,6 @@ $(function() {
                   // Get the state segment.
                   // This should be the only thing called from render.
                   get: function () {
-                     if (key === 'recipients') { console.log('recipients: ' + JSON.stringify(component.state[key])); }
                      return component.state[key]
                   },
                   // Set the state segment
@@ -130,7 +129,6 @@ $(function() {
                }
             }, function () {
                var message = 'HTTP error ' + JSON.stringify(arguments);
-               console.log(message); 
                alert(message);
             });
             return q.promise;
@@ -201,7 +199,6 @@ $(function() {
          var tag = 'create-user';
          rpc('doCreateUser').createUser(tag, self.newUser.get()).call().done(function (data) {
             withResponse(data, tag, function (v) {
-               console.log('created user: ' + v);
                self.newUser.revert();
                rpc('post-create-user').listUsers('list-users').call().done(function (data) {
                   withResponse(data, 'list-users', updateUsers);
@@ -263,7 +260,6 @@ $(function() {
       function deleteMessage(messageId) {
          var tag = 'delete-message';
          rpc('delete-message').deleteMessage(tag, messageId).call().done(function (data) {
-            console.log(data);
             update('post-delete-message');
          });
       }
@@ -382,9 +378,7 @@ $(function() {
                h.span(null, 'Recipients: '),
                (function () {
                   var recipients = self.recipients.get();
-                  console.log('recipients in render: ' + JSON.stringify(recipients));
                   return _.map(self.props.allUsers, function (user) {
-                     console.log('checked ' + user.name + ' ' + user.id + ' ' + recipients[user.id]);
                      return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: _.has(recipients, user.id), onChange: function(e) {
                         self.recipients.mutate(function(rs) {
                            rs[user.id] = e.target.checked;
