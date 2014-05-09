@@ -13,6 +13,7 @@ import Data.Acid
 
 import Control.Monad.State
 import Control.Monad.Reader
+import Control.Lens hiding (Indexable)
 import Data.SafeCopy
 
 import Data.Int
@@ -96,9 +97,9 @@ $(deriveSafeCopy 0 'base ''MessageRecipient)
 -- the database.
 
 -- Tables contain an IxSet and a counter for the next id.
-data (Indexable a, Typeable a, Ord a) => Table a = Table { set :: IxSet a, nextId :: Int64 }
+data (Indexable a, Typeable a, Ord a) => Table a = Table { _rows :: IxSet a, _nextId :: Int64 }
 
-data DB = DB { users :: Table User, messages :: Table Message }
+data DB = DB { _users :: Table User, _messages :: Table Message }
    deriving (Typeable)
 
 $(deriveSafeCopy 0 'base ''Table)
@@ -108,88 +109,101 @@ $(deriveSafeCopy 0 'base ''DB)
 type ADB = AcidState DB
 
 ------------------------------------------------------
+-- lenses
+
+makeLenses ''DB
+makeLenses ''Table
+
+--users :: Lens' DB (Table User)
+--users = lens _users (\db v -> db { _users = v })
+
+--messages :: Lens' DB (Table User)
+--messages = lens _messages (\db v -> db { _messages = v })
+
+------------------------------------------------------
 -- the internal api.
 
 createUserDB :: Text -> Update DB (Either Text UserId)
 createUserDB name = do 
     db <- get
-    let t = users db
-    let s = set t
+    let t = _users db
+    let s = _rows t
     -- enforce uniqueness of user names
     case null $ s @= (UserName name) of
       True -> do
-        let id = nextId t
+        let id = _nextId t
         let uid = UserId id
         let s' = insert (User uid (UserName name)) s
-        put $ db { users = Table s' (1 + id) }
+        users .= Table s' (1 + id) -- db { _users = Table s' (1 + id) }
         return $ Right uid
       False -> return $ Left $ concat ["Duplicate name: ", name]
 
 getUserByNameDB :: Text -> Query DB (Maybe User)
 getUserByNameDB name = do
     db <- ask
-    case toList $ (set $ users db) @= (UserName name) of
+    case toList $ (db^.users.rows) @= (UserName name) of
         p : [] -> return $ Just p
         _ -> return Nothing
 
 getUserByIdDB :: UserId -> Query DB (Maybe User)
 getUserByIdDB id = do
     db <- ask
-    case toList $ (set $ users db) @= id of
+    case toList $ (db^.users.rows) @= id of
         p : [] -> return $ Just p
         _ -> return Nothing
 
 deleteUserDB :: UserId -> Update DB Bool
 deleteUserDB id = do 
     db <- get
-    let t = users db
-    let s = set t
+    let t = _users db
+    let s = _rows t
     -- enforce uniqueness of user names
     case toList $ s @= id of
         [] -> return False
         _ -> do
             let s' = deleteIx id s
-            put $ db { users = t { set = s' } }
+            users.rows .= s'
+            --put $ db { _users = t { _rows = s' } }
             return True
 
 listUsersDB :: Query DB [User]
-listUsersDB = do
-    db <- ask
-    return $ toList $ set $ users db
+listUsersDB = ask >>= \ db -> return $ toList $ db^.users.rows
+    --db <- ask
+    --return $ toList $ _rows $ _users db
 
 createMessageDB :: UserId -> [UserId] -> POSIXTime -> Text -> Update DB MessageId
 createMessageDB owner recipients time content = do 
     db <- get
-    let t = messages db
-    let s = set t
-    let id = nextId t
+    let t = _messages db
+    let s = _rows t
+    let id = _nextId t
     let uid = MessageId id
     -- todo check validity of recipients
     let s' = insert (Message uid (MessageOwner owner) (fmap MessageRecipient recipients) (MessageTime time) content) s
-    put $ db { messages = Table s' (1 + id) }
+    put $ db { _messages = Table s' (1 + id) }
     return uid
 
 deleteMessageDB :: MessageId -> Update DB Bool
 deleteMessageDB id = do
     db <- get
-    let t = messages db
-    let s = set t
+    let t = _messages db
+    let s = _rows t
     case toList $ s @= id of
         [] -> return False
         _ -> do
             let s' = deleteIx id s
-            put $ db { messages = t { set = s' } }
+            put $ db { _messages = t { _rows = s' } }
             return True
 
 listMessagesReceivedDB :: UserId -> Query DB [Message]
 listMessagesReceivedDB id = do
     db <- ask
-    return $ toList $ (set $ messages db) @+ [MessageRecipient id]
+    return $ toList $ (_rows $ _messages db) @+ [MessageRecipient id]
 
 listMessagesSentDB :: UserId -> Query DB [Message]
 listMessagesSentDB id = do
     db <- ask
-    return $ toList $ (set $ messages db) @= (MessageOwner id)
+    return $ toList $ (_rows $ _messages db) @= (MessageOwner id)
 
 $(makeAcidic ''DB 
   [ 'createUserDB, 'deleteUserDB, 'listUsersDB, 'getUserByIdDB, 'getUserByNameDB
