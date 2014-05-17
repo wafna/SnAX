@@ -1,6 +1,9 @@
 'use strict';
 
 __define('RPC', function (my) {
+   var assertDefined = Util.assertDefined;
+   var assertString = Util.assertString;
+
    // creates an object that fluently accumulates rpc calls and then sends them.
    // tag goes into the query string to identify the call
    my.rpc = function (tag) {
@@ -9,10 +12,10 @@ __define('RPC', function (my) {
       var accum = {};
       var proxy; // permanent this.
       function add(t, f) {
-         __assert(!_.isUndefined(t), 'tag required.');
-         __assert(_.isString(t), 'tag must be a string: ' + t);
-         __assert(!_.isUndefined(f), 'function required.');
-         __assert(_.isString(f), 'function must be a string: ' + f);
+         assertDefined(t, 'tag required.');
+         assertString(t, 'tag must be a string: ' + t);
+         assertDefined(f, 'function required.');
+         assertString(f, 'function must be a string: ' + f);
          __assert(!_.has(accum, t), 'call \'' + t + '\' already defined.');
          // NB we simply discard the first two arguments to get the list of params.
          accum[t] = { name: f, params: _.tail(arguments[2]) };
