@@ -1,11 +1,14 @@
 'use strict';
 
 __define('Util', function (my) {
+	my.assertDefined = function (v, n) {
+		__assert(! _.isUndefined(v), "'" + n + "' is not defined.");
+	};
 	my.assertString = function (v, n) {
 		__assert(_.isString(v), "'" + n + "' must be a string: " + n);
 	};
-	my.assertDefined = function (v, n) {
-		__assert(! _.isUndefined(v), "'" + n + "' is not defined.");
+	my.assertFunction = function (v, n) {
+		__assert(_.isFunction(v), "'" + n + "' must be a string: " + n);
 	};
 	// insists on exactly one element, returns the one element.
 	my.domId = function (id) {
