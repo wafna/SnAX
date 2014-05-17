@@ -21,36 +21,43 @@ $(function() {
     * - Allows components to proxy their state changes deeply in the component hierarchy (i.e. as props).
     * requires: lodash, q.
     */
-   function LensedState (config) {
+   function LensedState () {
+      var state = {};
       // the mixin
       return {
-         // Install the lenses in the component, create initial state.
+         // Install the root lens in the component.
          getInitialState: function () {
             var component = this;
-            var initialState = {};
-            _.forOwn(config, function (value, key) {
+            function refresh () {
+               // this prevents an NPE when creating the initial lens.
+               component.state && component.setState({counter: 1 + component.state.counter});
+            }
+            function createLens (keys, initialValue) {
                // Assigning to a var gives us, effectively, a permanent this pointer.
-               // This, in turn, allows us to 'peel off' the functions, i.e. use references to them without calling them,
-               // without losing track of the lens to which they refer.
+               // This, in turn, allows us to "peel off" the functions, i.e. use references to them without calling them,
+               // without losing track of the lens to which they refer. (This is the screw 'this' pattern.)
                var lens = {
                   // Get the state segment.
                   // This should be the only thing called from render.
                   get: function () {
-                     return component.state[key]
+                     return _.reduce(keys, function(a, k) {
+                        return a[k];
+                     }, state);
                   },
                   // Set the state segment
                   set: function (v) {
-                     __assert(! _.isUndefined(v), 'Lensing undefined value to \'', key, '\'.');
-                     var s = {};
-                     s[key] = v;
-                     component.setState(s);
+                     __assert(! _.isUndefined(v), 'Lensing undefined value to \'', keys, '\'.');
+                     _.reduce(_.initial(keys), function (a, k) {
+                        return a[k];
+                     }, state)[_.last(keys)] = v;
+                     refresh();
                   },
                   // promise a value to be set
                   promise: function () {
                      var q = Q.defer();
                      // take advantage of set's proxying.
                      q.promise.done(lens.set, function(reason) {
-                        console.warn('Promise rejected for lens value \'' + key + '\': ' + reason);
+                        console.warn('Promise rejected for lens value \'' + keys + '\': ' + reason);
                      });
                      return q;
                   },
@@ -58,30 +65,42 @@ $(function() {
                   // Rejects mutations to undefined as these are probably programming errors.
                   mutate: function (mutator) {
                      var m  = mutator(lens.get());
-                     __assert(! _.isUndefined(m), 'Mutating lens \'', key, '\' to undefined. Did you forget to return something from the mutator?');
+                     __assert(! _.isUndefined(m), 'Mutating lens \'', keys, '\' to undefined. Did you forget to return something from the mutator?');
                      lens.set(m);
                   },
                   // Reverts the state to its initial value.
                   revert: function () {
-                     lens.set(value);
+                     __assert(! _.isUndefined(initialValue), 'Reverting to undefined value to \'', keys, '\'.');
+                     lens.set(initialValue);
                   },
                   // Binds the lens to an input control.
                   // ps is the props object, inline this call to the component
                   // Can't use this with JSX. :/
                   bindInput: function (ps) {
-                     __assert(! ps.onChange, 'onChange property already bound for lens\'', key, '\'.');
+                     __assert(! ps.onChange, 'onChange property already bound for lens\'', keys, '\'.');
                      ps.onChange = function (e) {
                         lens.set(e.target.value);
                      }
-                     __assert(! ps.value, 'value property already bound for lens\'', key, '\'.');
+                     __assert(! ps.value, 'value property already bound for lens\'', keys, '\'.');
                      ps.value = lens.get();
                      return ps;
+                  },
+                  narrow: function (key, initialValue) {
+                     return createLens(keys.concat(key), initialValue);
                   }
                };
-               initialState[key] = _.clone(value, true);
-               component[key] = lens;
-            });
-            return initialState;
+               if (! _.isUndefined(initialValue)) {
+                  lens.set(initialValue);
+               }
+               return lens;
+            }
+            component.lens = {
+               narrow: function (key, initialValue) {
+                  return createLens([key], initialValue);
+               }
+            }
+            // the state is not managed by react; instead, we just give it a counter that we increment to provoke a render.
+            return {counter: 0};
          }
       }
    };
@@ -265,18 +284,15 @@ $(function() {
       }
       return React.createClass({
          displayName: 'SnAX',
-         mixins: 
-            [LensedState({
-               newUser: '', 
-               login: '', 
-               user: '', 
-               allUsers: [],
-               sentMessages: [],
-               receivedMessages: []
-            })
-         ],
+         mixins: [LensedState()],
          getInitialState: function () {
             self = this; // this is the first opportunity.
+            self.newUser = self.lens.narrow('newUser', '');
+            self.login = self.lens.narrow('login', '');
+            self.user = self.lens.narrow('user', '');
+            self.allUsers = self.lens.narrow('allUsers', []);
+            self.sentMessages = self.lens.narrow('sentMessages', []);
+            self.receivedMessages = self.lens.narrow('receivedMessages', []);
          },
          componentDidMount: function () {
             rpc('page-init').listUsers('list-users').call().done(function (data) {
@@ -317,6 +333,7 @@ $(function() {
    })();
    var MessageComposer = (function () {
       var self;
+      var message, recipients;
       function createMessage() {
          var tag = 'create-message';
          var rr = self.recipients.get();
@@ -338,11 +355,7 @@ $(function() {
          }, {}));
       }
       return React.createClass({
-         mixins: [LensedState({
-            message: '', 
-            recipients: {}, 
-            })
-         ],
+         mixins: [LensedState()],
          propTypes: {
             user: React.PropTypes.object.isRequired,
             allUsers: React.PropTypes.array.isRequired,
@@ -350,6 +363,8 @@ $(function() {
          },
          getInitialState: function () {
             self = this;
+            self.message = self.lens.narrow('message', '');
+            self.recipients = self.lens.narrow('recipients', {});
          },
          componentWillReceiveProps : function (newProps) {
             // we have to account for the fact that if the component updates then users may have disappeared so we must nix deleted users from the 
