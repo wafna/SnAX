@@ -50,13 +50,13 @@ $(function() {
             var tag = 'login';
             __assert(_.isString(loginName), 'login name required but got ' + loginName);
             rpc('do-login').getUserByName(tag, loginName).call().done(function (data) {
-               withResponse(data, tag, function(user) {
-                  if (user) {
-                     user.set(user);
+               withResponse(data, tag, function(u) {
+                  if (u) {
+                     user.set(u);
                      rpc('post-login').
                            listUsers('list-users').
-                           listMessagesSent('sent-messages', user.id).
-                           listMessagesReceived('received-messages', user.id).
+                           listMessagesSent('sent-messages', u.id).
+                           listMessagesReceived('received-messages', u.id).
                            call().done(function(data) {
                         withResponse(data, 'list-users', updateUsers);
                         withResponse(data, 'sent-messages', sentMessages.set);
@@ -212,10 +212,10 @@ $(function() {
                h.h4(null, 'Create Message'),
                h.span(null, 'Recipients: '),
                (function () {
-                  var recipients = recipients.get();
+                  var rs = recipients.get();
                   return _.map(self.props.allUsers, function (user) {
-                     return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: _.has(recipients, user.id), onChange: function(e) {
-                        recipients.mutate(function(rs) {
+                     return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: _.has(rs, user.id), onChange: function(e) {
+                        rs.mutate(function(rs) {
                            rs[user.id] = e.target.checked;
                            return rs;
                         });
