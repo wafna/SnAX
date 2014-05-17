@@ -215,7 +215,7 @@ $(function() {
                   var rs = recipients.get();
                   return _.map(self.props.allUsers, function (user) {
                      return h.span({ key: user.name }, user.name, h.input({ type: 'checkbox', checked: _.has(rs, user.id), onChange: function(e) {
-                        rs.mutate(function(rs) {
+                        recipients.mutate(function(rs) {
                            rs[user.id] = e.target.checked;
                            return rs;
                         });

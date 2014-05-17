@@ -1,10 +1,10 @@
 'use strict';
 
 __define('Lens', function (my) {
+   var assertDefined = Util.assertDefined;
    /**
-    * Adds lenses on a component's state to a component.
-    * A lens proxies the getting and the setting of the state and provides the following advantages:
-    * - Greatly minimizes the chance of naming the state segment wrong (the name only appears once, in the lens definition).
+    * Adds lenses on a data structure.
+    * A lens proxies the getting and the setting of the values within a data structure and provides the following advantages:
     * - Mistyping the name of the lens causes a run time failure rather than getting or setting the wrong thing silently.
     * - Allows convenient binding of the lens to an input control.
     * - Allows components to proxy their state changes deeply in the component hierarchy (i.e. as props).
@@ -35,7 +35,7 @@ __define('Lens', function (my) {
                   },
                   // Set the state segment
                   set: function (v) {
-                     __assert(! _.isUndefined(v), 'Lensing undefined value to \'', keys, '\'.');
+                     assertDefined(v, 'Lensing undefined value to \'', keys, '\'.');
                      _.reduce(_.initial(keys), function (a, k) {
                         return a[k];
                      }, state)[_.last(keys)] = v;
@@ -54,12 +54,12 @@ __define('Lens', function (my) {
                   // Rejects mutations to undefined as these are probably programming errors.
                   mutate: function (mutator) {
                      var m  = mutator(lens.get());
-                     __assert(! _.isUndefined(m), 'Mutating lens \'', keys, '\' to undefined. Did you forget to return something from the mutator?');
+                     assertDefined(m, 'Mutating lens \'', keys, '\' to undefined. Did you forget to return something from the mutator?');
                      lens.set(m);
                   },
                   // Reverts the state to its initial value.
                   revert: function () {
-                     __assert(! _.isUndefined(initialValue), 'Reverting to undefined value to \'', keys, '\'.');
+                     assertDefined(initialValue, 'Reverting to undefined value to \'', keys, '\'.');
                      lens.set(initialValue);
                   },
                   // Binds the lens to an input control.
